@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { BookOpen, ArrowLeft, User, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { sanitizeInput, validateClassName } from '@/lib/utils'
+import { NIGERIAN_CLASSES } from '@/lib/types/database'
 
 export default function StudentLoginPage() {
   const [fullName, setFullName] = useState('')
@@ -95,6 +96,16 @@ export default function StudentLoginPage() {
             <p className="text-gray-600">Enter your credentials to access the exam</p>
           </div>
 
+          {/* Demo Credentials Notice */}
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
+            <h3 className="text-sm font-medium text-blue-900 mb-2">Demo Credentials</h3>
+            <div className="text-xs text-blue-800 space-y-1">
+              <p><strong>Name:</strong> Adebayo Tunde, <strong>Class:</strong> JSS1A</p>
+              <p><strong>Name:</strong> Jennifer Akpan, <strong>Class:</strong> SS1A</p>
+              <p className="pt-1 text-blue-600">More students available in other Nigerian classes</p>
+            </div>
+          </div>
+
           {/* Error Message */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-6">
@@ -129,16 +140,30 @@ export default function StudentLoginPage() {
               </label>
               <div className="relative">
                 <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
+                <select
                   id="className"
                   value={className}
                   onChange={(e) => setClassName(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter your class (e.g., 10A, Grade-12)"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
                   required
                   disabled={isLoading}
-                />
+                >
+                  <option value="">Select your class</option>
+                  <optgroup label="Junior Secondary School (JSS)">
+                    {NIGERIAN_CLASSES.filter(c => c.class_level === 'JSS').map(classInfo => (
+                      <option key={classInfo.class_name} value={classInfo.class_name}>
+                        {classInfo.class_name} - {classInfo.description}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Senior Secondary School (SS)">
+                    {NIGERIAN_CLASSES.filter(c => c.class_level === 'SS').map(classInfo => (
+                      <option key={classInfo.class_name} value={classInfo.class_name}>
+                        {classInfo.class_name} - {classInfo.description}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
               </div>
             </div>
 
@@ -151,8 +176,31 @@ export default function StudentLoginPage() {
             </button>
           </form>
 
+          {/* Available Classes Info */}
+          <div className="mt-6 p-4 bg-gray-50 rounded-md">
+            <h3 className="text-sm font-medium text-gray-900 mb-2">Available Classes</h3>
+            <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+              <div>
+                <strong>JSS:</strong>
+                <div>JSS1A, JSS1B</div>
+                <div>JSS2A, JSS3A</div>
+              </div>
+              <div>
+                <strong>SS:</strong>
+                <div>SS1A, SS1B</div>
+                <div>SS2A, SS3A</div>
+              </div>
+              <div>
+                <strong>Subjects:</strong>
+                <div>Mathematics</div>
+                <div>English, Biology</div>
+                <div>Chemistry, Physics</div>
+              </div>
+            </div>
+          </div>
+
           {/* Security Notice */}
-          <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
             <h3 className="text-sm font-medium text-yellow-800 mb-1">Security Notice</h3>
             <p className="text-xs text-yellow-700">
               This exam has anti-cheat protection. Tab switching, copy-paste, and other violations will be monitored.

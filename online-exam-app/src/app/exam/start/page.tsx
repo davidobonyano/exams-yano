@@ -9,34 +9,6 @@ import { createClient } from '@/lib/supabase/client'
 import { formatTime, shuffleArray } from '@/lib/utils'
 import type { Student, Question, ExamSession } from '@/lib/types/database'
 
-// Mock questions for demo - in real app these would come from database
-const mockQuestions: Question[] = [
-  {
-    id: '1',
-    class: 'Demo Class',
-    question_text: 'What is the capital of France?',
-    options: ['London', 'Berlin', 'Paris', 'Madrid'],
-    correct_answer: 2,
-    created_at: new Date().toISOString()
-  },
-  {
-    id: '2',
-    class: 'Demo Class',
-    question_text: 'Which planet is known as the Red Planet?',
-    options: ['Venus', 'Mars', 'Jupiter', 'Saturn'],
-    correct_answer: 1,
-    created_at: new Date().toISOString()
-  },
-  {
-    id: '3',
-    class: 'Demo Class',
-    question_text: 'What is 2 + 2?',
-    options: ['3', '4', '5', '6'],
-    correct_answer: 1,
-    created_at: new Date().toISOString()
-  }
-]
-
 export default function ExamStartPage() {
   const router = useRouter()
   const {
@@ -114,23 +86,60 @@ export default function ExamStartPage() {
           return
         }
 
-        // In a real app, fetch questions from database based on student's class
-        const shuffledQuestions = shuffleArray(mockQuestions)
+        // Fetch questions from database based on student's class
+        const supabase = createClient()
+        const { data: questionsData, error: questionsError } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('class', parsedStudent.class)
+
+        if (questionsError) {
+          console.error('Error fetching questions:', questionsError)
+          alert('Error loading exam questions. Please contact your teacher.')
+          router.push('/student-login')
+          return
+        }
+
+        if (!questionsData || questionsData.length === 0) {
+          alert('No questions available for your class. Please contact your teacher.')
+          router.push('/student-login')
+          return
+        }
+
+        // Convert questions to proper format
+        const formattedQuestions: Question[] = questionsData.map(q => ({
+          ...q,
+          options: Array.isArray(q.options) ? q.options : JSON.parse(q.options || '[]')
+        }))
+
+        // Shuffle questions for each student uniquely
+        const shuffledQuestions = shuffleArray(formattedQuestions)
+
+        // Get the subject from the first question (assuming all questions are for the same subject)
+        const subject = shuffledQuestions[0]?.subject || 'General'
 
         // Create exam session
         const session: ExamSession = {
           id: `session_${Date.now()}`,
           student_id: parsedStudent.id,
           class: parsedStudent.class,
+          subject: subject,
           questions_order: shuffledQuestions.map(q => q.id),
           started_at: new Date().toISOString(),
           time_limit: 60, // 60 minutes
-          current_question_index: 0
+          current_question_index: 0,
+          is_active: true
         }
+
+        // Save session to database (optional for persistence)
+        await supabase
+          .from('exam_sessions')
+          .insert([session])
 
         startExam(session, parsedStudent, shuffledQuestions)
       } catch (error) {
         console.error('Error initializing exam:', error)
+        alert('Error starting exam. Please try again.')
         router.push('/student-login')
       } finally {
         setIsLoading(false)
@@ -173,10 +182,12 @@ export default function ExamStartPage() {
         }
       })
 
-      // In a real app, save results to database
+      // Save results to database
+      const supabase = createClient()
       const result = {
         student_id: student.id,
         class: student.class,
+        subject: currentSession.subject,
         answers,
         score,
         total_questions: totalQuestions,
@@ -185,21 +196,32 @@ export default function ExamStartPage() {
         time_taken: (currentSession.time_limit * 60) - timeRemaining
       }
 
-      console.log('Exam result:', result)
+      const { error: resultError } = await supabase
+        .from('exam_results')
+        .insert([result])
+
+      if (resultError) {
+        console.error('Error saving result:', resultError)
+      }
 
       // Mark student as submitted in database
-      const supabase = createClient()
       await supabase
         .from('students')
         .update({ has_submitted: true })
         .eq('id', student.id)
+
+      // Mark session as inactive
+      await supabase
+        .from('exam_sessions')
+        .update({ is_active: false })
+        .eq('id', currentSession.id)
 
       // Clear exam data
       resetExam()
       localStorage.removeItem('currentStudent')
       
       // Redirect to results
-      router.push(`/exam/results?score=${score}&total=${totalQuestions}`)
+      router.push(`/exam/results?score=${score}&total=${totalQuestions}&subject=${encodeURIComponent(currentSession.subject)}`)
     } catch (error) {
       console.error('Error submitting exam:', error)
       alert('Error submitting exam. Please try again.')
@@ -253,8 +275,12 @@ export default function ExamStartPage() {
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Exam in Progress</h1>
-              <p className="text-sm text-gray-600">{student.full_name} • {student.class}</p>
+              <h1 className="text-xl font-bold text-gray-900">
+                {currentSession.subject} Exam
+              </h1>
+              <p className="text-sm text-gray-600">
+                {student.full_name} • {student.class}
+              </p>
             </div>
             
             {/* Timer */}
